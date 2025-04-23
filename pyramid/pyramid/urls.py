@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshSlidingView
 from api.views import CreateUserView
-from auth.login import CustomTokenObtainPairView
-from auth.logout import LogoutView
+from auth_component.login import CustomTokenObtainPairView
+from auth_component.logout import LogoutView
 from .views import simple_mail
 # prebuilt views, that allow us to obtain and access our refresh token, bult in to sign in users
 
@@ -17,5 +17,5 @@ urlpatterns = [
     path('api/logout/', LogoutView.as_view(), name="logout"),
     path('api/', include('api.urls')),
     path("test/", include("myapp.urls")),
-    path('mail', simple_mail)
+    path('mail/', simple_mail)
 ]
