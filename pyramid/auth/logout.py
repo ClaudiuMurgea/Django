@@ -17,6 +17,6 @@ class LogoutView(APIView):
 
             logout(request)  # Logout the user session
 
-            return Response({"message": "Successfully logged out"}, status=200)
+            return Response({"message": "Successfully logged out" + refresh_token}, status=200)
         except Exception as e:
             return Response({"error": str(e)}, status=400)

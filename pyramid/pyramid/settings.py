@@ -48,6 +48,16 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_PORT = 2525
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = '56d42ba48e0049'  # Use 'apikey' as the username
+EMAIL_HOST_PASSWORD = 'be11b42b2b74bc'  # Replace with actual API key
+DEFAULT_FROM_EMAIL = 'your_email@example.com'
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -124,6 +134,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+AUTH_USER_MODEL = 'pyramid.CustomUser'
 
 
 # Internationalization
