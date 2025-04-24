@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshSlid
 from api.views import CreateUserView
 from auth_component.login import CustomTokenObtainPairView
 from auth_component.logout import LogoutView
-from .views import simple_mail
+from .views import mail_user
 # prebuilt views, that allow us to obtain and access our refresh token, bult in to sign in users
 
 
@@ -17,5 +17,5 @@ urlpatterns = [
     path('api/logout/', LogoutView.as_view(), name="logout"),
     path('api/', include('api.urls')),
     path("test/", include("myapp.urls")),
-    path('mail/', simple_mail)
+    path('mail/', mail_user, name="request_rest_code"),
 ]

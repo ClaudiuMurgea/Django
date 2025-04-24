@@ -15,7 +15,7 @@ class Permission(models.Model):
 
 class User_details(models.Model):
     phone = models.CharField()
-    digits = models.IntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    email = models.CharField(max_length=250, null=True, blank=True)
+    digits = models.IntegerField(null=True, blank=True)
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="owner")

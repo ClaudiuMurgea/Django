@@ -14,11 +14,11 @@ class PermissionListCreate(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Permission.objects.filter(author=user)
+        return Permission.objects.filter(role=user)
 
     def perform_create(self, serializer):
         if serializer.is_valid():
-            serializer.save(author=self.request.user)
+            serializer.save(role=self.request.user)
         else:
             print(serializer.errors)
 
@@ -29,7 +29,7 @@ class PermissionDelete(generics.DestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Note.objects.filter(author=user)
+        return Note.objects.filter(role=user)
 
 
 class CreateUserView(generics.CreateAPIView):
