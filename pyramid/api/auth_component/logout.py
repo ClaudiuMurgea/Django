@@ -5,7 +5,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import logout
 
-
+# When logging out, the jwt package was modified to blacklist the access token of the user
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
     #Blacklist Token

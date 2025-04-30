@@ -7,7 +7,7 @@ class CustomUser(AbstractUser):
     # Add your custom fields here
     phone = models.CharField(null=True)
     email = models.CharField(max_length=250, null=True, blank=True)
-    digits = models.IntegerField(null=True, blank=True)
+    pin = models.IntegerField(null=True, blank=True)
     failed_attempts = models.IntegerField(null=True, default=0)
     code_generation_time = models.DateTimeField(null=True)
     class LockedStatus(models.TextChoices):

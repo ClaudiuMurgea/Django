@@ -4,13 +4,15 @@ from django.contrib.auth import login
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from rest_framework.response import Response
-from reports.models import User_logs
+from reports.models import User_login_activity
 from django.utils.timezone import now
 from api.models import CustomUser
 from django.core.mail import send_mail
+from datetime import datetime
 
 User = get_user_model()
 
+# The Login jwt package serializer was modified to raise exception on failed login attempt that can be customized here
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -49,7 +51,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
             ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
             
-            User_logs.objects.create(
+            User_login_activity.objects.create(
                 user_id=user.id,
                 username=user.username,
                 ip_address=ip_address,
@@ -58,7 +60,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
 
             if user.failed_attempts >= 5:
-                return Response({"detail": "Account locked due to multiple failed login attempts."}, status=status.HTTP_403_FORBIDDEN)
+                # Account locked due to multiple failed login attempts
+                return Response({"code": 3}, status=status.HTTP_403_FORBIDDEN)
             else:
                 CustomUser.objects.filter(id=user.id).update(failed_attempts=0, locked="no")
 
@@ -67,13 +70,12 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             # ❌ FAILURE: If serializer raises an error (e.g. wrong username/password)
             username = request.data.get("username")
             ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
-
-            #check if the given username is correct, if it is, we populate the user_id, otherwise the user_id will stay NULL
+            currentDate = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             user = User.objects.filter(username=username).first()
             user_id = user.id if user else None  # Get user_id or None if not found
 
             # Create a log entry
-            User_logs.objects.create( 
+            User_login_activity.objects.create( 
                 username=username,
                 user_id=user_id,
                 ip_address=ip_address,  
@@ -84,13 +86,19 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             if user_id != None:
                 if user.failed_attempts < 5:
                     user.failed_attempts += 1
+                    user.save()
+                    return Response({}, status=status.HTTP_401_UNAUTHORIZED)
                 elif user.failed_attempts >= 5 and user.locked == "no":
                     user.locked = "yes"
                     send_mail(subject='That`s your subject',
                         message='Hello ' + username +
-                        '! \n Your account has been locked due to 5 consecutive failures to login!',
+                        '! \n Your account has been locked for security reasons' +
+                        '  \n The last failed attempt occured on : ' + currentDate +
+                        '  \n From a device using the IP: ' + ip_address,
                         from_email='egt.pyramid.com',
                         recipient_list=['useremail@gmail.com'])
-                user.save()
+                    user.save()
+                    return Response({"code": 3}, status=status.HTTP_403_FORBIDDEN)
+                
 
-        return Response({'message': 'Invalid credentials or internal error'}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)

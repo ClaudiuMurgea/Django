@@ -67,7 +67,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'myapp',
     'api',
     'reports',
     'rest_framework',
@@ -93,7 +92,7 @@ ROOT_URLCONF = 'pyramid.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, "pyramid/templates")],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -142,7 +141,7 @@ AUTH_USER_MODEL = 'api.CustomUser'  # app_name.ModelName
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Europe/Bucharest"
 
 USE_I18N = True
 
