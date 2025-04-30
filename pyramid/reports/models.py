@@ -1,9 +1,11 @@
 from django.db import models
+from api.models import CustomUser
 
 # Create your models here.
 
-
 class User_logs(models.Model):
-    title = models.CharField(max_length=100)
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True) # User ID reference
+    username = models.CharField(max_length=100, null=True)
+    action = models.CharField(max_length=100)
+    ip_address = models.GenericIPAddressField(null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)

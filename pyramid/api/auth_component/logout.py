@@ -8,7 +8,7 @@ from django.contrib.auth import logout
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
-
+    #Blacklist Token
     def post(self, request):
         try:
             refresh_token = request.data["refresh"]
