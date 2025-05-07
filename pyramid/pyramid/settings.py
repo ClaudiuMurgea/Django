@@ -32,7 +32,6 @@ SECRET_KEY = 'django-insecure-u=qxngb7^hl_)@yx1_faamojg-umxe2(7yrfi+-uky*gl&b0c-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -46,6 +45,10 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_BLACKLIST_SERIALIZER': 'rest_framework_simplejwt.token_blacklist.serializers.TokenBlacklistSerializer',
 }
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -67,12 +70,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'api',
+    'django_extensions',
+    'authentication',
+    'permissions',
     'reports',
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt.token_blacklist'
-
 ]
 
 MIDDLEWARE = [
@@ -134,7 +138,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-AUTH_USER_MODEL = 'api.CustomUser'  # app_name.ModelName
+AUTH_USER_MODEL = 'authentication.CustomUser'  # app_name.ModelName
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -160,15 +164,16 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://10.109.254.118",
+    "http://10.109.254.120",
     "http://10.109.254.183",
 ]
+ALLOWED_HOSTS = ["10.109.254.120", "10.109.254.118"]
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
-    "http://10.109.254.118",
+    "http://10.109.254.120",
     "http://10.109.254.183"
 ]
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+ALLOWED_HOSTS = ["*"]
+#ALLOWED_HOSTS = ["10.109.254.120", "10.109.254.118"]
