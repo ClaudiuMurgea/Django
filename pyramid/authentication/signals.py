@@ -1,3 +1,95 @@
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
+from django.contrib.auth.models import Group
+from .models import Settings
+from django.db import connection
+from django.contrib.auth.hashers import make_password
+from .models import CustomUser
+from datetime import datetime
+
+@receiver(post_migrate)
+def create_default_groups_and_settings(sender, **kwargs):
+    if sender.name == "authentication":
+        default_config = {
+            "Cashier": {
+                "minimum_characters": 6,
+                "contain_upper_case": False,
+                "contain_lower_case": True,
+                "contain_special_case": True,
+                "contain_number": True,
+            },
+            "Attendant": {
+                "minimum_characters": 8,
+                "contain_upper_case": True,
+                "contain_lower_case": True,
+                "contain_special_case": True,
+                "contain_number": True,
+            },
+            "Manager": {
+                "minimum_characters": 10,
+                "contain_upper_case": True,
+                "contain_lower_case": True,
+                "contain_special_case": True,
+                "contain_number": True,
+            },
+        }
+        if "authentication_settings" in connection.introspection.table_names():
+            for role_name, settings_values in default_config.items():
+                group, created = Group.objects.get_or_create(name=role_name)
+                Settings.objects.get_or_create(group=group, defaults=settings_values)
+        
+        # serializer = UserSerializer(data=request.data)
+        # if serializer.is_valid():
+        #     serializer.save()
+
+        if not CustomUser.objects.filter(username="eurogames").exists():
+            superuser = CustomUser(
+                username="eurogames",
+                email="email@egt.com",
+                phone="+40771694307",
+                is_superuser=True,
+                is_staff=True,
+                password_changed_at=datetime.now(),
+                password=make_password("pyramid")  # Manually hash password
+            )
+            superuser.save()
+            manager_group, _ = Group.objects.get_or_create(name="Manager") # in this line _ means i dont need the second value, which is a bool, "created" could have been there and be used further in the code, as needed
+            superuser.groups.add(manager_group)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # from django.contrib.auth.signals import user_login_failed
 # from django.contrib.auth.signals import user_logged_in
 # from django.db.models.signals import post_save

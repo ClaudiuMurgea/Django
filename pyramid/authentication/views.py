@@ -1,96 +1,88 @@
-from django.shortcuts import render
-from django.http import HttpResponse
-from django.contrib.auth import get_user_model
 from rest_framework import generics
-from .serializers import UserSerializer, SettingSerializer
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from .serializers import UserSerializer, SettingsSerializer, SettingsPermission, IsManagerGroupOrSuperuser
+from rest_framework_simplejwt import serializers
+from rest_framework.permissions import IsAuthenticated
 from django.core.mail import send_mail
-import sqlite3
 import random
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
-from django.contrib.auth.hashers import make_password
-from datetime import datetime, timedelta, timezone
+from django.contrib.auth.hashers import make_password, check_password
+from datetime import datetime, timedelta
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import CustomUser
-from .models import Setting
+from .models import Settings
 from rest_framework import status
-import os
-from django.conf import settings
-from reports.models import User_login_activity
+from reports.models import Settings_history
 from django.utils.timezone import now
-# from .permissions import IsAdminUser, IsRegularUser
-# from django.contrib.auth.models import Group
-
-User = get_user_model()
-db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
-
-class SettingListCreate(generics.ListCreateAPIView):
-    serializer_class = SettingSerializer
-    permission_classes = [IsAuthenticated]
+from pyramid.custom_settings import PIN_MEASURE, PIN_EXPIRATION_TIME
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.models import Group
+class SettingsListCreate(generics.ListCreateAPIView):
+    serializer_class = SettingsSerializer
+    permission_classes = [IsAuthenticated, SettingsPermission]
 
     def get_queryset(self):
         user = self.request.user
-        return Setting.objects.filter(user_id=user)
+        return Settings.objects.filter(user_id=user)
 
     def perform_create(self, serializer):
         if serializer.is_valid():
-            return JsonResponse({"works":"yes"})
+            settings_instance = serializer.save(user_id=self.request.user.id)
 
-            # permission_classes = [IsAdminUser]
-
-
-            # Group.objects.create(name="Admin") 
-            user = CustomUser.objects.get(username="eurogames")  # Get the user
-            group = Group.objects.get(name="Admin")  # Change to "User" if needed
-            user.groups.add(group)  # Assign the role
-            user.save()
-
-            User_login_activity.objects.create(
-                user_id=self.request.user.id,
-                username=self.request.user.username,
-                ip_address=self.request.META.get("REMOTE_ADDR", "Unknown"),
-                action='SETTINGS_CREATED',
+            Settings_history.objects.create(
+                user_id=settings_instance.user_id,
+                minimum_characters=settings_instance.minimum_characters,
+                contain_upper_case=settings_instance.contain_upper_case,
+                contain_lower_case=settings_instance.contain_lower_case,
+                contain_special_case=settings_instance.contain_special_case,
+                contain_number=settings_instance.contain_number,
+                created_at=settings_instance.created_at,  # Use the same timestamp
             )
-            serializer.save(user_id=self.request.user.id)
+            return JsonResponse({"message": "Settings saved successfully"})
         else:
             raise serializers.ValidationError(serializer.errors) 
         
-class SettingUpdate(generics.UpdateAPIView):
-    serializer_class = SettingSerializer
+class SettingsUpdate(generics.UpdateAPIView):
+    serializer_class = SettingsSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        return Setting.objects.filter(user_id=user)
+        return Settings.objects.filter(user_id=user)
     
     def perform_update(self, serializer):
-        instance = serializer.save()  # Saves the updated instance
-        # Log user activity after successful update
-        User_login_activity.objects.create(
-            user_id=self.request.user.id,
-            username=self.request.user.username,
-            ip_address=self.request.META.get("REMOTE_ADDR", "Unknown"),
-            action='SETTINGS_UPDATED', 
-        )
+        settings_instance = serializer.save(user_id=self.request.user.id)
 
-class SettingDelete(generics.DestroyAPIView):
-    serializer_class = SettingSerializer
+        Settings_history.objects.create(
+                user_id=settings_instance.user_id,
+                minimum_characters=settings_instance.minimum_characters,
+                contain_upper_case=settings_instance.contain_upper_case,
+                contain_lower_case=settings_instance.contain_lower_case,
+                contain_special_case=settings_instance.contain_special_case,
+                contain_number=settings_instance.contain_number,
+                created_at=settings_instance.created_at,  # Use the same timestamp
+            )
+        return JsonResponse({"message": "Settings saved successfully"})
+
+class SettingsDelete(generics.DestroyAPIView):
+    serializer_class = SettingsSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        return Setting.objects.filter(user_id=user)
+        return Settings.objects.filter(user_id=user)
 
-
-class CreateUserView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [AllowAny]
-
+class RegisterUserAPIView(APIView):
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class UserListView(APIView):
     permission_classes = [IsAuthenticated]  # Requires authentication
 
@@ -99,21 +91,78 @@ class UserListView(APIView):
         serializer = UserSerializer(users, many=True)  # Serialize multiple users
         return Response(serializer.data)
 
-User = get_user_model()  # ✅ This will point to api.CustomUser
+class UpdateUserAPIView(APIView):
+    def put(self, request, pk):
+        user = get_object_or_404(CustomUser, pk=pk)
 
-class EditUserView(APIView):
-    permission_classes = [IsAuthenticated]  # Require authentication
+        # If password is present, hash it before saving
+        data = request.data.copy()
+        if 'password' in data:
+            data['password'] = make_password(data['password'])
 
-    def put(self, request, user_id):
+        serializer = UserSerializer(user, data=data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UnlockUserAPIView(APIView):
+    permission_classes = [IsManagerGroupOrSuperuser]
+    
+    def post(self, request, pk):
         try:
-            user = CustomUser.objects.get(id=user_id)  # Fetch user by ID
-            serializer = UserSerializer(user, data=request.data, partial=True)  # Allow partial updates
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            user = CustomUser.objects.get(pk=pk)
+            user.is_active = True
+            user.failed_attempts = 0
+            user.save()
+            return Response({}, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({}, status=status.HTTP_404_NOT_FOUND)
+        
+class RoleSettingsAPIView(APIView):
+    def get(self, request):
+        try:
+            groups = Group.objects.prefetch_related("settings").all()  # Optimize query
+
+            result = []
+            for group in groups:
+                if hasattr(group, "settings") and group.settings:
+                    fields = {
+                        field.name: getattr(group.settings, field.name)
+                        for field in group.settings._meta.fields if field.name not in ["id", "_state", "group"]
+                    }
+                    fields["group"] = group.name  # Convert Group object to string
+                    result.append(fields)
+            
+            return Response(result if result else {"error": "No settings found for any group"}, status=200)
+        except:
+            return JsonResponse({}, status=400)
+
+class AssignUserToGroupAPIView(APIView):
+    def post(self, request):
+        username = request.data.get("username")
+        role = request.data.get("role")
+
+        if not username or not role:
+            return Response({"error": "Username and group_name are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(username=username)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            group = Group.objects.get(name=role)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        #The clear is not a necessity but it will be used to ensure only 1 group is assigned 
+        user.groups.clear() 
+        user.groups.add(group)
+        #"message": f"User '{username}' added to group '{role}'."
+        return Response({}, status=status.HTTP_200_OK)
 
 @csrf_exempt
 def mail_user(request):
@@ -128,14 +177,10 @@ def mail_user(request):
             timestamp = datetime.now()
 
             if data_type and data_value:  # Validate input
-                # Connect to your SQLite database
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute(
-                    f"UPDATE authentication_customuser SET pin = {random_number} , code_generation_time='{ timestamp }' WHERE {data_type} = '{data_value}'")
-                conn.commit()
-                conn.close()
-                if cursor.rowcount > 0:
+                filter_kwargs = {data_type: data_value}
+                query = CustomUser.objects.filter(**filter_kwargs).update(pin=random_number, code_generation_time=timestamp)
+            
+                if query > 0:
                     username = request.user.username
                     send_mail(subject='That`s your subject',
                           message='Hello ' + username +
@@ -166,42 +211,28 @@ def verify_code(request):
             data_pin = data.get("pin")
 
             if data_type and data_value and data_pin:  # Validate input
-                # Connect to your SQLite database
-                conn = sqlite3.connect(db_path)
-                # Connect to your SQLite database
-                cursor = conn.cursor()
-                # Select code if email or phone is correct and exists, with a code not older than 60minutes
-                cursor.execute(
-                        f"SELECT pin, code_generation_time FROM authentication_customuser WHERE {data_type} = '{ data_value }'")
-                result = cursor.fetchone()
-                conn.commit()
-                conn.close()
-                #protect against no entry in db
-                if result is None:
+                result = CustomUser.objects.filter(**{data_type: data_value}).values("pin", "code_generation_time").first()
+                if result:
+                    dbTime = result['code_generation_time']
+                    current_time = now()
+
+                    time_difference = abs(current_time - dbTime)
+
+                    if time_difference > timedelta(**{PIN_MEASURE: PIN_EXPIRATION_TIME}):
+                        #Pin is old
+                        return JsonResponse({"code":2}, status=404)
+                    else:
+
+                        #Pin is recent enough
+                        pin = result['pin']
+                        if(int(pin) == int(data_pin)):
+                            return JsonResponse({}, status=200)
+                        else:
+                            #Pin do not match
+                            return JsonResponse({"code":1}, status=404)
+                else:
                     # No email or phone found in the database
                     return JsonResponse({}, status=404)
-
-                dbTime_str = result[1]
-                nowTime_str = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
-                # Parse dbTime (naive datetime, assuming it's in UTC or local timezone — adjust if needed)
-                dbTime = datetime.strptime(dbTime_str, "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
-                # Parse nowTime (ISO 8601 string with 'Z' meaning UTC)
-                nowTime = datetime.strptime(nowTime_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-                # Compare
-                time_difference = nowTime - dbTime
-
-                if time_difference > timedelta(minutes=3):
-                    #Pin is old
-                    return JsonResponse({"code":2}, status=404)
-                else:
-                    #Pin is recent enough
-                    pin = result[0]
-                    if(int(pin) == int(data_pin)):
-                        return JsonResponse({})
-                    else:
-                        #Pin do not match
-                        return JsonResponse({"code":1}, status=404)
-
             return JsonResponse({}, status=400)
         except:
             #Invalid JSON
@@ -215,23 +246,34 @@ def update_user_password(request):
             data_type     = data.get("type")
             data_value    = data.get("value")
             data_password = data.get("password")
+            
             if data_type and data_value and data_password:  # Validate input
-                # Connect to your SQLite database
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                
-                hashed_password = make_password(data_password)
+                # Fetch current hashed password
+                result = CustomUser.objects.filter(**{data_type: data_value}).values("password").first()
+                if result:
+                    current_hashed_password = result["password"]
+                    # Check if the new password is the same or contains the old password (as substring)
+                    # WARNING: You don't store the raw password, so can't check if the new contains the old raw password
+                    # Instead, just check if it's the same password using Django's check_password
+                    if check_password(data_password, current_hashed_password):
+                        return JsonResponse({"code": 5}, status=400)
 
-                cursor.execute(
-                        f"UPDATE authentication_customuser SET password = '{hashed_password}' WHERE {data_type} = '{data_value}'")
-                conn.commit()
-                conn.close()
+                    # Update password (it's valid and different)
+                    new_hashed_password = make_password(data_password)
+                    time = datetime.now()
 
-                if cursor.rowcount > 0:
+                    ALLOWED_FIELDS = {"username", "email"}  # Only allow these fields for data_type
+                    if data_type not in ALLOWED_FIELDS:
+                        return JsonResponse({"error": "Invalid field name"}, status=400)
+
+                    CustomUser.objects.filter(**{data_type: data_value}).update(
+                        password=new_hashed_password,
+                        password_changed_at=time
+                    )
                     return JsonResponse({})
                 else:
-                    #Value does not exist in database
-                    return JsonResponse({}, status=401)
+                    return JsonResponse({"error": "User not found"}, status=404) #cannot update a missing user
+
             #Missing required fields
             return JsonResponse({}, status=401)
         except:

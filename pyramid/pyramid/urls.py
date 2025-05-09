@@ -10,6 +10,5 @@ urlpatterns = [
     path('authentication/token/refresh', TokenRefreshView.as_view(), name="refresh"),
     path('api-auth/', include("rest_framework.urls")),
     path('authentication/', include('authentication.urls')),
-    path('permissions/', include('permissions.urls')),
     path("welcome/", home, name="home"),
 ]

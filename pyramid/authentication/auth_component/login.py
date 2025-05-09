@@ -1,5 +1,5 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from authentication.serializers import CustomTokenObtainPairSerializer
 from django.contrib.auth import login
 from rest_framework import status
 from django.contrib.auth import get_user_model
@@ -9,38 +9,18 @@ from django.utils.timezone import now
 from authentication.models import CustomUser
 from django.core.mail import send_mail
 from datetime import datetime
+from rest_framework.exceptions import ValidationError
+from pyramid.custom_settings import USER_MAXIMUM_FAILED_ATTEMPTS
 
 User = get_user_model()
 
 # The Login jwt package serializer was modified to raise exception on failed login attempt that can be customized here
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        # You can add custom claims to the token here (optional)
-        token['username'] = user.username
-        return token
-
-    def validate(self, attrs):
-        try:
-            # ✅ SUCCESS: If credentials are valid, this returns the tokens and adds extra data
-            data = super().validate(attrs)
-            # data.update({
-            #     'message': 'Login successful',
-            #     'username': self.user.username
-            # })
-            return data
-        except Exception as e:
-            # ❌ FAILURE: If credentials are invalid, this raises an error caught in the view
-            raise e  # Let the view handle the failure response
-
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer #not the default TokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
         try:
-
             # ✅ SUCCESS: If serializer.validate() runs without error
             response = super().post(request, *args, **kwargs)
             username = request.data.get("username")
@@ -56,20 +36,42 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user_id=user.id,
                 username=user.username,
                 ip_address=ip_address,
-                action='SUCCESSFUL_LOGIN',
                 timestamp=now()
             )
 
-            if user.failed_attempts >= 5 and user.is_active == 0:
+            if user.failed_attempts >= USER_MAXIMUM_FAILED_ATTEMPTS and user.is_active == 0:
                 # Account locked due to multiple failed login attempts
                 return Response(status=status.HTTP_423_LOCKED)
             else:
                 user.failed_attempts = 0
                 user.save()
 
-            return Response(response.data, status=status.HTTP_200_OK)
-        except Exception as e:
+            # Get user's groups
+            groups = user.groups.all().values_list("name", flat=True)  # Returns a list of group names
 
+            # Asign Super Admin if the user is superuser or the Group that it belongs to as a Role
+            response.data['role'] = "Super Admin" if user.is_superuser else user.groups.first().name if user.groups.exists() else None
+            return Response(response.data, status=status.HTTP_200_OK)
+        except ValidationError as e:
+            detail = e.detail.get("detail")
+            username = request.data.get("username")
+            ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
+            currentDate = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            user = User.objects.filter(username=username).first()
+            user_id = user.id if user else None  # Get user_id or None if not found
+
+            # Create a log entry
+            User_login_activity.objects.create( 
+                username=username,
+                user_id=user_id,
+                ip_address=ip_address,  
+                success=0, 
+                timestamp=now()
+            ) 
+            if detail[0] == "expired":
+                return Response({"code": 4}, status=status.HTTP_403_FORBIDDEN)
+            
+        except Exception as e:
             # ❌ FAILURE: If serializer raises an error (e.g. wrong username/password)
             username = request.data.get("username")
             ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
@@ -82,16 +84,15 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 username=username,
                 user_id=user_id,
                 ip_address=ip_address,  
-                action="FAILED_LOGIN", 
+                success=0, 
                 timestamp=now()
             ) 
-
             if user_id != None:
-                if user.failed_attempts < 5:
+                if user.failed_attempts < USER_MAXIMUM_FAILED_ATTEMPTS:
                     user.failed_attempts += 1
                     user.save()
-                    return Response({}, status=status.HTTP_401_UNAUTHORIZED)
-                elif user.failed_attempts >= 5 and user.is_active == 1:
+                    return Response({"incorrect credentials"})
+                elif user.failed_attempts >= USER_MAXIMUM_FAILED_ATTEMPTS and user.is_active == 1:
                     user.is_active = 0
                     send_mail(subject='That`s your subject',
                         message='Hello ' + username +
@@ -102,9 +103,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                         recipient_list=['useremail@gmail.com'])
                     user.save()
                     return Response({"code": 3}, status=status.HTTP_403_FORBIDDEN)
-                
             # return Response(status=status.HTTP_423_LOCKED)
-            
-                
 
         return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+
