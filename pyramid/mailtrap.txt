@@ -1,0 +1,10 @@
+Connect to mailtrap to check emails recieved
+https://mailtrap.io/
+
+Sign in with google account
+
+google username : eurogames500@gmail.com
+google password : pyramidweb
+
+Click on sandbox 
+Click on my inbox

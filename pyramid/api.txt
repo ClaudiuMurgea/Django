@@ -1,0 +1,193 @@
+
+Pyramid WEB
+Django authentication API list
+[ Create User]
+
+POST APIprotected by bearer access token:
+          http://10.109.254.120/authentication/user/create/
+
+Header: Bearer accessToken
+Request:    { "username" : String, "password" : String, "first_name" : String "last_name" : String, "email" : String, "phone" : String, "is_staff": "1 or 0", "is_superuser": "1 or 0" }
+Response: { user.Object }	HTTP status: 201 Created
+Response on  username exists:  { "username": [  "A user with that username already exists." ] } HTTP status 400
+
+[ List Users]
+
+GET APIprotected by bearer access token:
+          http://10.109.254.120/authentication/users
+
+Header: Bearer accessToken
+Request: { }
+Response:
+[ {
+        "id": 1,
+        "username": "eurogames",
+        "first_name": "Sean Paul",
+        "last_name": "",
+        "email": "email@egt.com",
+        "phone": "0771694307",
+        "is_staff": false,
+        "is_superuser": false },
+{
+       "id": 2,
+        "username": "gica",
+        "first_name": "gigi",
+        "last_name": "",
+        "email": "g@g.com",
+        "phone": "0771694307",
+        "is_staff": false,
+        "is_superuser": false },
+] HTTP status: 200
+
+[ Edit User]
+
+PUT APIprotected by bearer access token:
+          http://10.109.254.120/authentication/users/User-ID/edit/
+
+Header: Bearer accessToken
+Request:    { "username" : String, "password" : String, "first_name" : String "last_name" : String, "email" : String, "phone" : String, "is_staff": "1 or 0", "is_superuser": "1 or 0" }
+Response: { } HTTP status: 200
+Response on success: {  } HTTP status: 200
+Response on  username exists:  { "username": [  "A user with that username already exists." ] } HTTP status 400
+
+[ Log in User]
+
+POST API:
+          http://10.109.254.120/authentication/login/
+
+Request:    { "username" : "eurogames", "password" : "pyramid" }
+Response on success: { "refresh": String, "access": String, "role": "Super Admin / Manager / Attendant / Cashier" }
+Response on locked:  { "code": 3} HTTP status: 423 Locked
+Response on expired password:  { "code": 4 } HTTP status: 403 Forbidden
+Response on Incorrect Credentials:  { "Incorrect credentials"} HTTP status: 401 Unauthorized
+Response on Unexpected error:  { "error": "Unexpected error", "detail": str(e)} HTTP status: 500 Internal error or invalid Json
+
+[ Log out user ]
+
+POST API protected by bearer access token:
+          http://10.109.254.120/authentication/logout/
+
+Header: Bearer accessToken
+Request:   { "refresh": refreshToken }
+Response: { "message":"Succesfully log out  refreshToken" } HTTP status: 200
+
+[ Refresh token ]
+
+POST API:
+          http://10.109.254.120/authentication/token/refresh/
+
+Request:   { "refresh": refreshToken }
+Response: { "access":  String } HTTP status: 200 Ok
+
+[Forgot password - request PIN ]
+
+POST API:
+          http://10.109.254.120/authentication/mail/
+
+Request:    { "type" : "email", "value" : "email@egt.com" }  OR { "type" : "phone", "value" : "0771694307" }
+Response: { "pin": 123456 }
+
+[Forgot Password - verify PIN ]
+
+POST API:
+          http://10.109.254.120/authentication/verify/
+
+Request:
+{ "type" : "email", "value" : "email@egt.com" , "pin":123456 }
+{ "type" : "phone", "value" : "0771694307", "pin":"123456" }
+Response on success: {  } HTTP status: 200
+Response on  code not matching the database existent code: { "code":1 } HTTP status 404
+Response on code expired: { "code":2 } HTTP status 404
+
+[Forgot Password - update user password ]
+
+POST API:
+          http://10.109.254.120/authentication/update_user_password/
+
+Request:
+{ "type" : "email", "value" : "email@egt.com" , "password":123456 }
+{ "type" : "phone", "value" : "0771694307", "password":"123456" }
+Response: { }	HTTP status: 200
+Response on identical password: { "code":5 } HTTP status 400
+
+[ Unlock user ]
+
+POST API protected by bearer access token:  Only Super User or Manager can access
+          http://10.109.254.120/authentication/unlock-user/UserID/
+
+Header: Bearer accessToken
+Request:    { }
+Response: { }	HTTP status: 200
+
+[ Assign role ]
+
+POST API protected by bearer access token:
+          http://10.109.254.120/authentication/assign-role/
+
+Header: Bearer accessToken
+Request:    { "username" : eurogames, "role" : "Cashier/Attendant/Manager" }
+Response: { }	HTTP status: 200
+
+[ List all roles and settings  ]
+
+GET API :
+          http://10.109.254.120/authentication/role/settings
+
+Request:    { }
+Response: {
+[
+    {
+        "minimum_characters": 6,
+        "contain_upper_case": false,
+        "contain_lower_case": true,
+        "contain_special_case": true,
+        "contain_number": true,
+        "group": "Cashier"
+    },
+    {
+        "minimum_characters": 8,
+        "contain_upper_case": true,
+        "contain_lower_case": true,
+        "contain_special_case": true,
+        "contain_number": true,
+        "group": "Attendant"
+    },
+    {
+        "minimum_characters": 10,
+        "contain_upper_case": true,
+        "contain_lower_case": true,
+        "contain_special_case": true,
+        "contain_number": true,
+        "group": "Manager"
+    }
+] }	HTTP status: 200
+
+[ Recieve authentication settings per group ]
+
+GET API protected by bearer access token:
+          http://10.109.254.120/authentication/role/settings/Cashier
+          http://10.109.254.120/authentication/role/settings/Attendant
+          http://10.109.254.120/authentication/role/settings/Manager
+
+Header: Bearer accessToken
+Request:    { }
+Response:
+ {
+  "minimum_characters": 12,
+  "contain_upper_case": true,
+  "contain_lower_case": true,
+  "contain_special_case": true,
+  "contain_number": true
+} HTTP status: 200 Ok
+
+
+[Update authentication settings ]
+
+PUT API protected by bearer access token:
+          http://10.109.254.120/authentication/role/settings/Cashier/
+          http://10.109.254.120/authentication/role/settings/Attendant/
+          http://10.109.254.120/authentication/role/settings/Manager/
+
+Header: Bearer accessToken
+Request:    { "minimum_characters" : Integer, "contain_upper_case" : Boolean,  "contain_lower_case": Boolean, "contain_special_case": Boolean, "contain_number": Boolean, "password_expiration": Integer } Note: The request can contain a single column if needed.
+Response: { }	HTTP status: 200 Ok

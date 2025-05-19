@@ -1,5 +1,15 @@
-Django application requirements
+[ Description ]
+There are two sets of installation instructions that are required for the Pyramid Web Django application to function propperly.
+The first set contains instructions that are required on a default ubuntu server and the second set instructions that are required in the case of replacing the django applications with a completly new application. This second phase has been used mostly for development, that updates will be done differently if the application enters production.
 
+[ Location ]
+http://10.109.254.137/claudiu.murgea/pyramiddjango
+
+
+
+[ 1. Default ubuntu server deployment steps ]
+
+Django application requirements
 In the file "settings.py", os needs to be imported, the ALLOWED_HOSTS attribute need to have the server IP  and STATIC ROOT the path to the staticfiles folder : 
 import os
 
@@ -9,11 +19,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 Host server requirements
 To transfer the project to another server through ssh use the following command, not that we first transfer into PlayerJPNou to avoid restrictions, and then we move the application in /var/www
-
-scp -r pyramid SSHuserName@10.109.254.118:/var/www/PlayerJPNou
+scp -r pyramid SSHuserName@10.109.254.120:/var/www/PlayerJPNou
 sudo mv pyramid /var/www
 
- Change ubuntu mirror
+ Change ubuntu mirror:
 sudo nano /etc/apt/sources.list
 Replace ro.archive.ubuntu.com  and security.archive.ubuntu.com with:
 http://archive.ubuntu.com/ubuntu
@@ -23,8 +32,8 @@ sudo apt update
 sudo systemctl restart systemd-resolved
 
 Install apache2 service, wsgi python module and python virtual environment :
-sudo apt install apache2 libapache2-mod-wsgi-py3
-sudo apt install python3.10-venv            or pip install virtualenv
+sudo apt install libapache2-mod-wsgi-py3
+sudo apt install python3.10-venv            //or pip install virtualenv
 
 Go into the Django application folder, create a python virtual environment and activate it :
 cd /var/www/pyramid
@@ -32,12 +41,12 @@ python3 -m venv venv - do not use sudo
 source venv/bin/activate
 
 Install Django framework and create the PYTHONPATH environment variable :
-#SKIP sudo chown -R $(whoami) /var/www/pyramid/venv
-#SKIP sudo apt install python3-pip
+//SKIP sudo chown -R $(whoami) /var/www/pyramid/venv
+sudo apt install python3-pip
 pip install django
 export PYTHONPATH=/var/www/pyramid
 
-Inside the DjangoApp collect static files into the staticfiles path by having venv activated and running the following commands : 
+Collect static files into the staticfiles path by having venv activated and running the following commands : 
 python3 -m pip install load_dotenv  + (try to implement requirements.txt script for all)
 python3 -m pip install djangorestframework-simplejwt
 python3 -m pip install rest_framework_simplejwt
@@ -45,15 +54,17 @@ pip install dj_database_url
 pip install django-cors-headers
 mkdir staticfiles/  - do not use sudo
 
-#SKIP sudo chown -R www-data:www-data /var/www/pyramid/staticfiles/
-#SKIP sudo chmod -R 775 /var/www/pyramid/staticfiles/
-#SKIP sudo systemctl restart apache2
+//When permissions with sudo are given, some errors may appear, kept for reference, not required
+//#SKIP sudo chown -R www-data:www-data /var/www/pyramid/staticfiles/
+//#SKIP sudo chmod -R 775 /var/www/pyramid/staticfiles/
+//#SKIP sudo systemctl restart apache2
+
+pip install django-extensions
+pip install psycopg2-binary
 
 python3 manage.py collectstatic - do not use sudo
 
 Allow writing to the database by giving rights to the sqlite and the application : 
-sudo chown www-data:www-data /var/www/pyramid/db.sqlite3
-sudo chmod 664 /var/www/pyramid/db.sqlite3
 sudo chown -R www-data:www-data /var/www/pyramid/
 sudo chmod -R 775 /var/www/pyramid/
 sudo systemctl restart apache2
@@ -90,25 +101,33 @@ sudo nano /etc/apache2/sites-available/pyramid.conf
     CustomLog ${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
 
-Enable the Site & Restart Apache : 
+Enable the configurations & Restart Apache : 
 sudo a2ensite pyramid.conf
 sudo systemctl restart apache2
 
-#SKIP sudo su
-#SKIP source /venv/bin/activate
-#SKIP pip install django
+//SKIP sudo su
+//SKIP source /venv/bin/activate
+//sKIP pip install django
 
-Note!
-The path to the database connection has to be absolute when deployed on server : 
-conn = sqlite3.connect("/var/www/pyramid/db.sqlite3") 
-NOT conn = sqlite3.connect("db.sqlite3")
+To make Django know where the settings.py configuration file is run:
+export DJANGO_SETTINGS_MODULE=pyramid.settings
 
-if raw queries are required
-sqlite3 /var/www/pyramid/db.sqlite3 ".recover"
-sqlite3 db.sqlite3
+Setting up firewall:
+Enable firewall:
+sudo ufw enable
+
+Allow django application port:
+sudo ufw allow 80
+
+Allow postgress database port:
+sudo ufw allow 5432/tcp
+
+Allow ssh service:
+sudo ufw allow ssh
 
 
-Steps to replace the already deployed application:
+
+[ 2. Replace Django application deployment steps ]
 deactivate
 cd /var/www/pyramid
 python3 -m venv venv
@@ -119,46 +138,74 @@ python3 -m pip install rest_framework_simplejwt
 pip install dj_database_url
 pip install django-cors-headers
 pip install django-extensions
-
-mkdir staticfiles/ 
-python3 manage.py collectstatic
-sudo chmod 664 /var/www/pyramid/db.sqlite3
-sudo chown -R www-data:www-data /var/www/pyramid/
-sudo systemctl restart apache2
-
-
-If needed, on a freshly migrated db, run:
-
-python3 manage.py shell
-from django.contrib.auth.models import Group
-from authentication.models import CustomUser
-# Create roles
-manager_group, _ = Group.objects.get_or_create(name="Manager")
-attendent_group, _ = Group.objects.get_or_create(name="Attendent")
-cashier_group, _ = Group.objects.get_or_create(name="Cashier")
-
-# Assign user to role
-user = CustomUser.objects.get_or_create(username="eurogames")dent
-user.groups.add(attendent_group)
-
-sudo apt install postgresql libpq-dev
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo -u postgres psql
-
-CREATE DATABASE pyramid;
-CREATE USER eurogames WITH PASSWORD 'pyramid';
-ALTER ROLE eurogames SET client_encoding TO 'utf8';
-ALTER ROLE eurogames SET default_transaction_isolation TO 'read committed';
-ALTER ROLE eurogames SET timezone TO 'UTC';
-GRANT ALL PRIVILEGES ON DATABASE pyramid TO eurogames;
-\q
-
-ensure postgresql adaptor is installed
 pip install psycopg2-binary
+sudo apt install postgresql libpq-dev
+mkdir staticfiles/ 
+
+python3 manage.py collectstatic
+
+sudo -i -u postgres
+psql
+CREATE USER eurogames WITH PASSWORD 'pyramid';
+CREATE DATABASE pyramidweb;
+GRANT ALL PRIVILEGES ON DATABASE pyramidweb TO eurogames;
+exit
+exit
+
+python3 manage.py makemigrations authentication
+python3 manage.py makemigrations reports
+python3 manage.py migrate
+
+This is not part of the Django application deployment:
+All the commands further down are here for reference
+-----------------------------------------------------
+sudo apt install postgresql libpq-dev
+sudo apt install postgresql postgresql-contrib
+
+Dependencies:
+pip install psycopg2
+pip install psycopg2-binary
+
+Close all sessions of a specific postgres database :
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'pyramidweb';
+
+Settings required on the server to allow connections to postgresql from other ips other than local (pgadmin for example) :
+Part 1.
+sudo nano /etc/postgresql/14/main/postgresql.conf
+#Find this line, uncomment and make it equal to '*'
+listen_addresses = '*'
+
+Part 2.
+Allow other connections to connect to the postgres database through password authentication
+sudo nano /etc/postgresql/14/main/pg_hba.conf
+
+#Add this line at the bottom of the file
+host    all             all             your_django_server_ip/32        md5
+
+Replace your_django_server_ip with:
+- 10.109.254.183/32  allowing only this ip 
+- 0.0.0.0/0 allowing any ip to connect through username and password
+
+sudo systemctl restart postgresql
+
+
+Enable ssh keeps alive:
+sudo nano /etc/ssh/ssh_config
+
+Look for -> Host*  and add:
+ServerAliveInterval 60
+ServerAliveCountMax 3
+
+Adjust keep alive time command:
+sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
+
+PgAdmin4 installation guide:
+//pgadmin download official commands
 
 install pgadmin ui postgresql db
 
+sudo apt install curl
 curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
 ----------------------------------------------------------------------------------------------------
 sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt update'
@@ -179,48 +226,38 @@ sudo apt install pgadmin4-web
 # Configure the webserver, if you installed pgadmin4-web:
 sudo /usr/pgadmin4/bin/setup-web.sh
 
+email - eurogames@egt.com
+pass  - pyramid
+
+sudo systemctl restart pgadmin4
 
 
-Error log checking : sudo cat /var/log/apache2/error.log | tail -n 20
-
-
+Only on SQLITE version
 Avoid hardcoding paths like sqlite3.connect("db.sqlite3"). Instead, use Django's ORM or at least an absolute path:
 pythonCopyEditimport os
 from django.conf import settings
 
+Note!
+The path to the database connection has to be absolute when deployed on server : 
+
+conn = sqlite3.connect("/var/www/pyramid/db.sqlite3") 
+NOT conn = sqlite3.connect("db.sqlite3")
+
+If sqlite3 requirs recovery before using queries
+sqlite3 /var/www/pyramid/db.sqlite3 ".recover"
+
+If raw queries are required
+sqlite3 db.sqlite3
+
 db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
 conn = sqlite3.connect(db_path)
 
-If the dbsqlite3 has problems run: PRAGMA integrity_check;
+If the dbsqlite3 has problems run: 
+PRAGMA integrity_check;
+
+sudo chown www-data:www-data /var/www/pyramid/db.sqlite3
+sudo chmod 664 /var/www/pyramid/db.sqlite3
 Error log checking : 
 sudo cat /var/log/apache2/error.log | tail -n 20
-
-
-To make Django know where the settings.py configuration file is run:
-export DJANGO_SETTINGS_MODULE=pyramid.settings
 On remote server activate venv and run:
 DJANGO_SETTINGS_MODULE=pyramid.settings python3 manage.py shell
-
-
-Restart Postgres 
-sudo service postgresql start
-sudo service postgresql status
-
-
-
-Open hba file 
-sudo nano /etc/postgresql/14/main/pg_hba.conf  
-md5 means required password - peer means on localhost not required if sudo
-
-Switch to postgres user 
-sudo -i -u postgres
-
-To create a postgress database 
-createdb -O myuser mydb
-
-Alternative to delete and create database 
-sudo -i -u postgres / psql / DROP DATABASE your_database_name; / CREATE DATABASE your_database_name;
-
-# Drop database tables (be careful!)
-python3 manage.py flush
-
